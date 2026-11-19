@@ -460,7 +460,7 @@ function fail(){ $('loadTxt').textContent = 'Model gagal dimuat. Muat ulang hala
   try {
     const res = await fetch('model.glb');
     if (!res.ok) throw new Error(res.status);
-    const total = +res.headers.get('content-length') || 16877520;
+    const total = +res.headers.get('content-length') || 16866700;
     const reader = res.body.getReader(); const chunks = []; let got = 0;
     for (;;){
       const {done, value} = await reader.read(); if (done) break;
