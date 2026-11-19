@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="id">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Secte Beaute 3D</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+[hidden]{display:none!important}
+/* Layout: full-bleed 3D canvas; floating glass panels pinned to safe-area edges; vertical cut slider on the right edge */
+:root{
+  --bg:#e9e6e1; --panel:rgba(250,248,245,.86); --line:rgba(40,36,32,.14);
+  --fg:#2a2622; --muted:#6f675e; --accent:#b4552d; --accent-fg:#fff; --chip:#f3efe9;
+  --sky-top:#f4f1ec; --sky-bot:#d9d3ca;
+  --display:'Archivo',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#1c1a18; --panel:rgba(36,33,30,.86); --line:rgba(255,245,235,.12);
+  --fg:#efe9e1; --muted:#a69d92; --accent:#e07a4b; --accent-fg:#1c1a18; --chip:#2e2a26;
+  --sky-top:#2a2724; --sky-bot:#151311; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#1c1a18; --panel:rgba(36,33,30,.86); --line:rgba(255,245,235,.12);
+  --fg:#efe9e1; --muted:#a69d92; --accent:#e07a4b; --accent-fg:#1c1a18; --chip:#2e2a26;
+  --sky-top:#2a2724; --sky-bot:#151311; color-scheme:dark}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--display);overflow:hidden;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+#stage{position:fixed;inset:0;background:linear-gradient(var(--sky-top),var(--sky-bot))}
+#stage canvas{display:block;width:100%;height:100%;touch-action:none}
+.panel{position:fixed;background:var(--panel);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  border:1px solid var(--line);border-radius:14px;z-index:5}
+#brand{top:calc(12px + env(safe-area-inset-top,0px));left:max(12px,env(safe-area-inset-left,0px));padding:10px 14px}
+#brand b{font-weight:800;letter-spacing:.14em;font-size:15px}
+#brand small{display:block;color:var(--muted);font-size:11px;letter-spacing:.04em;margin-top:2px}
+#layers{top:calc(12px + env(safe-area-inset-top,0px));right:max(12px,env(safe-area-inset-right,0px));padding:6px;
+  display:flex;flex-wrap:wrap;gap:4px;max-width:58vw;justify-content:flex-end}
+.chip{font:600 12px var(--display);border:1px solid var(--line);background:var(--chip);color:var(--fg);
+  padding:7px 10px;border-radius:999px;cursor:pointer}
+.chip[aria-pressed="false"]{opacity:.45;text-decoration:line-through}
+#bar{left:50%;transform:translateX(-50%);bottom:calc(12px + env(safe-area-inset-bottom,0px));padding:8px;
+  display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:center;width:min(560px,calc(100% - 92px - max(12px,env(safe-area-inset-left,0px))))}
+.seg{display:flex;background:var(--chip);border-radius:10px;padding:3px;gap:2px;border:1px solid var(--line)}
+.seg button{font:600 13px var(--display);border:0;background:transparent;color:var(--fg);padding:8px 11px;border-radius:8px;cursor:pointer}
+.seg button.on{background:var(--accent);color:var(--accent-fg)}
+select{font:600 13px var(--display);background:var(--chip);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:8px 10px;max-width:150px}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#cut{right:max(12px,env(safe-area-inset-right,0px));top:50%;transform:translateY(-50%);width:62px;padding:10px 0;
+  display:flex;flex-direction:column;align-items:center;gap:8px}
+#cut .lab{font:500 10px var(--mono);color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+#cut .val{font:500 12px var(--mono);font-variant-numeric:tabular-nums}
+#cutWrap{height:min(42vh,300px);width:44px;position:relative}
+#cutRange{position:absolute;left:50%;top:50%;width:min(42vh,300px);height:44px;transform:translate(-50%,-50%) rotate(-90deg);
+  accent-color:var(--accent);background:transparent;margin:0}
+#full{font:600 11px var(--display);border:1px solid var(--line);background:var(--chip);color:var(--fg);border-radius:8px;padding:6px 8px;cursor:pointer}
+#hint{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));
+  font:400 11px var(--mono);color:var(--muted);z-index:4;white-space:nowrap;transition:opacity .6s}
+#load{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:20;
+  background:var(--bg);font:500 13px var(--mono);color:var(--muted)}
+#load .t{font:800 30px var(--display);letter-spacing:.2em;color:var(--fg)}
+#prog{width:200px;height:3px;background:var(--line);border-radius:3px;overflow:hidden}
+#prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+@media (max-width:520px){#bar{width:calc(100% - 24px);left:12px;transform:none;right:12px;bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+  #cut{top:auto;bottom:calc(150px + env(safe-area-inset-bottom,0px));transform:none}
+  #cutWrap{height:34vh}#cutRange{width:34vh}#hint{bottom:calc(128px + env(safe-area-inset-bottom,0px))}
+  #layers{max-width:62vw}
+  #layers{top:calc(66px + env(safe-area-inset-top,0px));left:12px;right:auto;max-width:none;justify-content:flex-start}}
+#dimBtn{font:600 13px var(--display);border:1px solid var(--line);background:var(--chip);color:var(--fg);border-radius:10px;padding:8px 10px;cursor:pointer}
+#dimBtn[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg);border-color:transparent}
+#card{left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom,0px));width:min(440px,calc(100% - 24px));padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+#card .row{display:flex;align-items:center;gap:8px}
+#card .code{font:600 12px var(--mono);background:var(--accent);color:var(--accent-fg);border-radius:6px;padding:3px 7px;white-space:nowrap}
+#card .nm{font-weight:600;font-size:15px;line-height:1.25;min-width:0;flex:1}
+#card .kind{font-size:12px;color:var(--muted)}
+#card ul{margin:0;padding-left:18px;font-size:12px;color:var(--fg)}
+#card .acts{display:flex;gap:6px;margin-top:4px}
+#card .acts button{flex:1;font:600 13px var(--display);border-radius:10px;padding:10px;border:1px solid var(--line);background:var(--chip);color:var(--fg);cursor:pointer}
+#card .acts .go{background:var(--accent);color:var(--accent-fg);border-color:transparent;flex:2}
+#gk{position:fixed;inset:0;z-index:30;background:var(--bg);display:flex;flex-direction:column}
+#gkHead{display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) 10px max(12px,env(safe-area-inset-left,0px));border-bottom:1px solid var(--line);background:var(--panel)}
+#gkHead .t{flex:1;min-width:0;font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#gkHead .t small{display:block;font:400 11px var(--mono);color:var(--muted)}
+#gkHead button{font:600 13px var(--display);border:1px solid var(--line);background:var(--chip);color:var(--fg);border-radius:10px;padding:9px 12px;cursor:pointer}
+#gkHead .close{background:var(--accent);color:var(--accent-fg);border-color:transparent}
+#gkView{flex:1;position:relative;overflow:hidden;touch-action:none;background:#fff}
+#gkImg{position:absolute;left:0;top:0;transform-origin:0 0;user-select:none;-webkit-user-drag:none;max-width:none}
+#gkTip{position:absolute;left:50%;bottom:calc(10px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);font:400 11px var(--mono);color:#6f675e;background:rgba(255,255,255,.85);padding:4px 8px;border-radius:6px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div id="stage"></div>
+
+<div id="brand" class="panel"><b>SECTE BEAUTE</b><small>Interior Secte Beaute · model 3D desain · warna material asli</small></div>
+
+<div id="layers" class="panel" role="group" aria-label="Lapisan">
+  <button class="chip" id="ly-plafon" aria-pressed="true">Plafon</button>
+  <button class="chip" id="ly-lampu" aria-pressed="true">Lampu</button>
+  <button class="chip" id="ly-furnitur" aria-pressed="true">Furnitur</button>
+  <button class="chip" id="ly-garis" aria-pressed="true">Garis</button>
+</div>
+
+<div id="cut" class="panel">
+  <span class="lab">Potong</span>
+  <span class="val" id="cutVal">+2,40</span>
+  <div id="cutWrap"><input type="range" id="cutRange" min="0.05" max="10" step="0.01" value="2.4" aria-label="Tinggi potongan horizontal (m)"></div>
+  <button id="full" title="Tampilkan bangunan utuh">Utuh</button>
+</div>
+
+<div id="bar" class="panel">
+  <div class="seg" role="group" aria-label="Arah pandang">
+    <button id="v-3d" class="on">3D</button><button id="v-top">Atas</button><button id="v-front">Depan</button><button id="v-side">Samping</button>
+  </div>
+  <select id="scene" aria-label="Scene"><option value="">Scene…</option></select>
+  <select id="sheetSel" aria-label="Gambar kerja"><option value="">Gambar kerja…</option><option value="0">G-01 Sampul</option><option value="1">G-02 Daftar isi</option><option value="2">A-01 Denah furnitur (hitam putih)</option><option value="3">A-01C Denah furnitur (berwarna)</option><option value="4">A-02 Denah pola lantai (floor plan)</option><option value="5">A-03 Denah dinding partisi & wall treatment</option><option value="6">A-04 Denah finishing dinding</option><option value="7">A-05 Denah rencana plafon (ceiling plan)</option><option value="8">ME-01 Denah mekanikal & elektrikal</option><option value="9">ME-02 Denah instalasi air kotor</option><option value="10">ME-03 Denah instalasi air bersih</option><option value="11">A-06 Tampak depan</option><option value="12">A-06B Tampak samping kanan</option><option value="13">A-07 Tampak samping kiri</option><option value="14">A-07B Tampak belakang (dari batas halaman)</option><option value="15">A-08 Potongan a-a</option><option value="16">A-09 Potongan b-b</option><option value="17">A-10 Potongan c-c</option><option value="18">A-11 Potongan d-d</option><option value="19">WT-01 Mosaic porcelain putih fasad kiri</option><option value="20">WT-02 Mosaic porcelain putih fasad kanan</option><option value="21">WT-03 Panel kayu dinding samping teras</option><option value="22">WT-04 Panel akrilik & hpl kamar pas</option><option value="23">WT-05 Panel print gambar dinding</option><option value="24">WT-06 Panel dinding putih dekoratif</option><option value="25">PS-01 Dinding partisi grc 3125 (ruang display lengkung)</option><option value="26">PS-02 Dinding partisi grc 1960</option><option value="27">PS-03 Dinding partisi grc 2555 (teras samping)</option><option value="28">P-01 Pintu kaca 908 x 2240</option><option value="29">P-02 Pintu kaca 822 x 2240</option><option value="30">P-03 Pintu kaca 919 x 2240</option><option value="31">P-04 Pintu kaca 2130 x 2220</option><option value="32">P-05 Pintu kaca 935 x 2240</option><option value="33">P-06 Pintu kayu 1150 x 2190</option><option value="34">P-07 Pintu kayu 2300 x 2190</option><option value="35">P-08 Pintu kaca 2493 x 2460</option><option value="36">P-09 Pintu kayu 1550 x 2520</option><option value="37">P-10 Pintu kayu 1555 x 2520</option><option value="38">P-11 Pintu kayu 900 x 1895</option><option value="39">P-12 Pintu 900 x 2100</option><option value="40">P-13 Pintu 820 x 2060</option><option value="41">P-14 Pintu kayu 1200 x 1895</option><option value="42">P-15 Pintu kaca 1740 x 2110</option><option value="43">P-16 Pintu kaca 1200 x 2110</option><option value="44">P-17 Pintu kaca 2000 x 2110</option><option value="45">P-18 Pintu kaca 1510 x 2530</option><option value="46">P-19 Pintu 880 x 2100</option><option value="47">P-20 Pintu 760 x 2040</option><option value="48">BF-01 Dudukan bangku plywood 1865</option><option value="49">BF-02 Top bangku keramik 2385</option><option value="50">BF-03 Dudukan beton bangku</option><option value="51">BF-04 Bangku planter teras 6000</option><option value="52">BF-05 Dudukan bangku plywood teras 7820</option><option value="53">BF-06 Top bangku keramik 7820</option><option value="54">BF-07 Rak display dinding 1240 (aluminium + akrilik)</option><option value="55">BF-08 Rak display jendela depan 5380</option><option value="56">BF-09 Meja display island (pulau) 3240</option><option value="57">BF-10 Rak display dinding 3840</option><option value="58">BF-11 Rak display jendela depan 4690</option><option value="59">BF-12 Rak display jendela samping 4355</option><option value="60">BF-13 Display podium tembaga</option><option value="61">BF-14 Rak display akrilik 400</option><option value="62">BF-15 Rak sudut + cermin 548</option><option value="63">BF-16 Rak + cermin 475</option><option value="64">BF-17 Bangku planter teras 4182</option><option value="65">BF-18 Cermin dinding 600</option><option value="66">BF-19 Panel poster dinding 1290</option><option value="67">BF-20 Rak display + cermin (lengkung) 3080</option><option value="68">BF-21 Panel display dinding 1300</option><option value="69">BF-22 Rak display dinding 4750</option><option value="70">BF-23 Rak display jendela samping 4480</option><option value="71">BF-24 Rak sudut aluminium 902</option><option value="72">BF-25 Bangku planter teras 1459</option><option value="73">BF-26 Rak aluminium 1232</option><option value="74">BF-27 Rak display dinding 1240</option><option value="75">BF-28 Panel/rak dinding kayu 1985</option><option value="76">BF-29 Rak aluminium 1240</option><option value="77">BF-30 Panel poster dinding 1860 (h 2630)</option><option value="78">BF-31 Rak display kolom 500</option><option value="79">BF-32 Panel poster dinding 1860</option><option value="80">BF-33 Rak display + cermin 4670</option><option value="81">BF-34 Rak display 1000</option><option value="82">BF-35 Rak sudut + cermin 364</option><option value="83">BF-36 Rak display 1034</option><option value="84">BF-37 Rak display 1000</option><option value="85">BF-38 Kamar pas (fitting room) + tirai</option><option value="86">BF-39 Rak dinding kamar pas 3770</option><option value="87">BF-40 Tirai kamar pas</option><option value="88">BF-41 Lemari 1040</option><option value="89">BF-42 Rak atas 1040</option><option value="90">BF-43 Rak display 554</option><option value="91">BF-44 Panel/rak dinding aluminium 1985</option><option value="92">BF-45 Panel/rak dinding aluminium 3878</option><option value="93">BF-46 Rak display dinding akrilik 4940</option><option value="94">BF-47 Meja kasir / display lengkung kayu cherry</option><option value="95">BF-48 Rak display dinding 2945</option><option value="96">BF-49 Panel kayu samping bay window</option><option value="97">BF-50 Podium aluminium</option><option value="98">BF-51 Podium bay window</option><option value="99">BF-52 Display bay window (etalase segi delapan)</option><option value="100">BF-53 Bangku / podium 1520</option><option value="101">BF-54 Meja display island 3560</option><option value="102">BF-55 Bangku hpl 1550</option><option value="103">BF-56 Lemari kaca dinding 1850</option><option value="104">BF-57 Panel dinding hpl 1805</option><option value="105">BF-58 Meja bar (counter) + bak es & galon</option><option value="106">BF-59 Panel dinding hpl 1600</option><option value="107">BF-60 Lemari hpl 1240</option><option value="108">BF-61 Rak display akrilik 1030</option><option value="109">BF-62 Partisi tirai kanvas</option><option value="110">BF-63 Rak display poster 945</option><option value="111">BF-64 Rak display akrilik 945</option><option value="112">BF-65 Meja bar belakang (back counter)</option><option value="113">LF-01 Lampu meja / dekorasi</option><option value="114">LF-02 Set bangku + meja teras (4 stool)</option><option value="115">LF-03 Meja / counter 3200</option><option value="116">LF-04 Meja / counter 3200</option><option value="117">LF-05 Meja / counter 3200</option><option value="118">LF-06 Meja display 1500</option><option value="119">LF-07 Stool bar</option><option value="120">LF-08 Kursi kafe (reidar)</option><option value="121">LF-09 Kursi santai panjang</option><option value="122">LF-10 Meja kafe luar</option><option value="123">SG-01 Signage huruf timbul secte beaute fasad depan</option><option value="124">SG-02 Signage huruf timbul samping (teras kanan)</option><option value="125">AX-01 Aksonometri bangunan (atap & plafon dihilangkan)</option></select>
+  <button id="dimBtn" aria-pressed="false" hidden>Dimensi</button>
+</div>
+
+<div id="hint">1 jari: putar · 2 jari: zoom & geser · ketuk furnitur/dinding/lantai/plafon untuk detail</div>
+
+<div id="card" class="panel" hidden>
+  <div class="row"><span class="code" id="cCode"></span><span class="nm" id="cName"></span></div>
+  <div class="kind" id="cKind"></div>
+  <ul id="cMats"></ul>
+  <div class="acts"><button class="go" id="cGo">Lihat gambar kerja</button><button id="cClose">Tutup</button></div>
+</div>
+
+<div id="gk" hidden>
+  <div id="gkHead"><div class="t" id="gkTitle"></div><button id="gkFit">Pas layar</button><button class="close" id="gkClose">Tutup</button></div>
+  <div id="gkView"><img id="gkImg" alt="Gambar kerja"><div id="gkTip">cubit / scroll untuk zoom · seret untuk geser</div></div>
+</div>
+
+<div id="load"><div class="t">SECTE BEAUTE</div><div id="prog"><i></i></div><div id="loadTxt">Memuat model 3D…</div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+(function(){
+const $ = id => document.getElementById(id);
+const stage = $('stage');
+const renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.localClippingEnabled = true;
+stage.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, 1, 0.05, 400);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.09; controls.screenSpacePanning = true;
+controls.minDistance = 0.5; controls.maxDistance = 60; controls.maxPolarAngle = Math.PI * 0.98;
+controls.touches = {ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN};
+
+// Mode material akurat: tanpa pencahayaan/exposure; tekstur & warna tampil apa adanya (unlit)
+renderer.toneMapping = THREE.NoToneMapping;
+
+// horizontal cut plane: keeps geometry below height h (m)
+const cutPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 2.4);
+const CLIP = [cutPlane];
+const TOP = 10;
+let cutRing = null;
+
+// building frame (unit): x -0.68..8.82, z -13.83..0 (m)
+const C = new THREE.Vector3(4.0, 1.2, -6.9);
+const VIEWS = {"3d": {"pos": [25.33, 15, -1.55], "tgt": [12.33, 0.8, -18.55]}, "top": {"pos": [12.33, 32, -18.5], "tgt": [12.33, 0, -18.55]}, "front": {"pos": [12.33, 1.7, 6.53], "tgt": [12.33, 1.5, -6.47]}, "side": {"pos": [32.09, 1.7, -18.55], "tgt": [19.09, 1.5, -18.55]}};
+let anim = null;
+function fly(pos, tgt, ms){
+  const p0 = camera.position.clone(), t0 = controls.target.clone();
+  const p1 = new THREE.Vector3(...pos), t1 = new THREE.Vector3(...tgt);
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const dur = reduce ? 0 : (ms || 700), st = performance.now();
+  anim = now => {
+    let k = dur ? Math.min(1, (now - st) / dur) : 1; k = k < .5 ? 2*k*k : 1 - Math.pow(-2*k + 2, 2)/2;
+    camera.position.lerpVectors(p0, p1, k); controls.target.lerpVectors(t0, t1, k);
+    if (k >= 1) anim = null;
+  };
+}
+function setView(id){
+  if (id !== 'top' && orthoOn) setOrtho(false);
+  $('dimBtn').hidden = id !== 'top';
+  document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.id === 'v-' + id));
+  const v = VIEWS[id]; fly(v.pos, v.tgt);
+  $('scene').value = '';
+  if (location.hash && /^#scene-/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
+}
+['3d','top','front','side'].forEach(id => $('v-' + id).addEventListener('click', () => setView(id)));
+
+// cut slider
+function setCut(h){
+  h = Math.max(0.05, Math.min(TOP, h));
+  cutPlane.constant = h;
+  $('cutRange').value = h;
+  $('cutVal').textContent = h >= TOP - 0.01 ? 'utuh' : '+' + h.toFixed(2).replace('.', ',');
+  if (cutRing){ cutRing.position.y = h - 0.002; cutRing.visible = h < TOP - 0.01; }
+}
+$('cutRange').addEventListener('input', e => setCut(parseFloat(e.target.value)));
+$('full').addEventListener('click', () => setCut(TOP));
+
+// layers
+const groups = {}; const LON = {};
+function setLayer(name, on){
+  const b = $('ly-' + name); b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  LON[name] = on;
+  for (const g in groups){ groups[g].visible = LON[g] !== false; groups[g].traverse(o => { if (o.isLineSegments || o.isLine) o.visible = LON.garis !== false; }); }
+}
+['plafon','lampu','furnitur','garis'].forEach(n => $('ly-' + n).addEventListener('click', () => {
+  setLayer(n, $('ly-' + n).getAttribute('aria-pressed') !== 'true');
+}));
+
+// SketchUp scenes
+const CAMS = [{"name": "Tampilan tersimpan", "pos": [18.144, 5.129, 16.825], "tgt": [17.673, 4.393, 12.922]}, {"name": "Scene 2-2", "pos": [150.903, 1.747, -17.844], "tgt": [146.903, 1.747, -17.844]}, {"name": "Scene 4-4", "pos": [12.1, 1.832, -138.651], "tgt": [12.1, 1.832, -134.651]}, {"name": "Scene 5-5", "pos": [118.229, 3.574, -17.968], "tgt": [114.229, 3.574, -17.968]}, {"name": "Scene 6-6", "pos": [11.59, 1.328, 90.763], "tgt": [11.59, 1.328, 86.763]}, {"name": "Scene 7-7", "pos": [11.194, 1.785, 85.038], "tgt": [11.194, 1.785, 81.038]}, {"name": "Scene 8-8", "pos": [11.732, 1.545, 85.884], "tgt": [11.732, 1.545, 81.884]}, {"name": "Scene 8", "pos": [11.546, 2.42, 21.568], "tgt": [11.546, 2.42, 17.568]}, {"name": "Scene 9", "pos": [-2.427, 1.088, 2.477], "tgt": [0.61, 1.348, -0.112]}, {"name": "Scene 10", "pos": [7.388, 1.268, -5.677], "tgt": [11.388, 1.268, -5.677]}, {"name": "Scene 11", "pos": [19.955, 1.366, -14.3], "tgt": [15.955, 1.366, -14.3]}, {"name": "Scene 12", "pos": [11.339, 1.652, -19.999], "tgt": [11.339, 1.652, -15.999]}, {"name": "Scene 13", "pos": [13.702, 1.979, -7.525], "tgt": [13.702, 1.979, -11.525]}, {"name": "Scene 14", "pos": [15.418, 1.653, -15.187], "tgt": [15.408, 1.653, -19.187]}, {"name": "Scene 15", "pos": [7.786, 1.355, -22.014], "tgt": [11.786, 1.355, -22.014]}, {"name": "Scene 17", "pos": [3.237, 1.748, -20.366], "tgt": [7.092, 1.718, -21.435]}];
+const sel = $('scene');
+CAMS.forEach((c, i) => {
+  if (/Last Saved/.test(c.name)) return;
+  const o = document.createElement('option'); o.value = c.name.replace(/\D/g, ''); o.textContent = c.name; sel.appendChild(o);
+});
+function goScene(n){
+  const c = CAMS.find(c => c.name.replace(/\D/g, '') === String(n) && !/Last/.test(c.name));
+  if (!c) return false;
+  if (orthoOn) setOrtho(false); $('dimBtn').hidden = true;
+  document.querySelectorAll('.seg button').forEach(b => b.classList.remove('on'));
+  sel.value = String(n);
+  fly(c.pos, c.tgt, 900);
+  return true;
+}
+sel.addEventListener('change', () => {
+  if (!sel.value) return;
+  goScene(sel.value);
+  history.replaceState(null, '', '#scene-' + sel.value);
+});
+function fromHash(){
+  const m = /^#scene-(\d+)$/.exec(location.hash || '');
+  if (m && goScene(m[1])) return true;
+  return false;
+}
+window.addEventListener('hashchange', fromHash);
+
+
+// =================== orthographic top view + dimensions ===================
+const ortho = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 200);
+ortho.up.set(0, 0, -1); ortho.position.set(12.33, 40, -18.55);
+const controls2 = new THREE.OrbitControls(ortho, renderer.domElement);
+controls2.enableRotate = false; controls2.screenSpacePanning = true; controls2.enabled = false; controls2.enableDamping = true;
+controls2.target.set(12.33, 0, -18.55); controls2.minZoom = 0.4; controls2.maxZoom = 12;
+controls2.mouseButtons = {LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN};
+controls2.touches = {ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_PAN};
+let orthoOn = false, cutBeforeDims = 2.4;
+function fitOrtho(){
+  const w = stage.clientWidth, h = stage.clientHeight, asp = w / h;
+  const W = 26.7, H = 37.4;                         // model + dimension strings (m)
+  let hh = H / 2; if (hh * asp < W / 2) hh = (W / 2) / asp;
+  ortho.left = -hh * asp; ortho.right = hh * asp; ortho.top = hh; ortho.bottom = -hh; ortho.updateProjectionMatrix();
+}
+const dimGroup = new THREE.Group(); dimGroup.visible = false; scene.add(dimGroup);
+const DY = 3.7;                                    // drawn above everything
+const P = (x, y) => new THREE.Vector3(x / 1000, DY, -y / 1000);
+function textSprite(str, rot){
+  const c = document.createElement('canvas'), g = c.getContext('2d'), fs = 64;
+  g.font = '600 ' + fs + 'px "IBM Plex Mono", ui-monospace, monospace';
+  const w = Math.ceil(g.measureText(str).width) + 16; c.width = w; c.height = fs + 16;
+  g.font = '600 ' + fs + 'px "IBM Plex Mono", ui-monospace, monospace'; g.fillStyle = '#2a2622'; g.textBaseline = 'middle';
+  g.fillText(str, 8, c.height / 2);
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+  const m = new THREE.SpriteMaterial({map: t, depthTest: false, transparent: true, rotation: rot || 0});
+  const sp = new THREE.Sprite(m); const hgt = 0.16; sp.scale.set(hgt * c.width / c.height, hgt, 1); sp.renderOrder = 11;
+  return sp;
+}
+const DIMS = [["x", 1170, [1567, 10232, 10582, 18552, 18742, 18862, 19062, 19691, 20320, 20949, 21577, 21617, 21817, 23092], [15940, 2470, 6645, 6745, 2470, 2470, 2510, 2550, 2550, 2550, 2550, 2510, 2510, 29600], -1], ["x", 520, [1567, 23092], [2470, 2470], -1], ["x", 35929, [1567, 19826, 20086, 23092], [19385, 32330, 34630, 32330], 1], ["y", 266, [2470, 15940, 16090, 19135, 19385, 20633, 23143, 24653, 26653, 29613, 34630], [10232, 1567, 1567, 1567, 1567, 1892, 2032, 1892, 2043, 1892, 19826], -1], ["y", -383, [2470, 34630], [1567, 1567], -1], ["y", 24392, [2470, 29600, 29860, 32070, 32330, 34630], [18902, 19252, 23092, 23052, 23092, 20086], 1]];
+(function buildDims(){
+  const solid = [], dashed = [];
+  DIMS.forEach(([ax, c, pts, ext, side]) => {
+    const a = pts[0], b = pts[pts.length - 1];
+    if (ax === 'x'){
+      solid.push(P(a - 150, c), P(b + 150, c));
+      pts.forEach((p, i) => {
+        solid.push(P(p - 45, c - 45), P(p + 45, c + 45));
+        if (ext){ const e = ext[i]; const dir = Math.sign(e - c); dashed.push(P(p, e - dir * 60), P(p, c - dir * 120)); }
+      });
+      let nk = 0;
+      for (let i = 0; i < pts.length - 1; i++){
+        const span = pts[i + 1] - pts[i]; let off = 150; if (span < 600){ nk++; off = 150 + (nk % 2 ? 330 : 0); }
+        const sp = textSprite(String(Math.round(span)));
+        sp.position.copy(P((pts[i] + pts[i + 1]) / 2, c + side * (off + 60))); dimGroup.add(sp);
+      }
+    } else {
+      solid.push(P(c, a - 150), P(c, b + 150));
+      pts.forEach((p, i) => {
+        solid.push(P(c - 45, p - 45), P(c + 45, p + 45));
+        if (ext){ const e = ext[i]; const dir = Math.sign(e - c); dashed.push(P(e - dir * 60, p), P(c - dir * 120, p)); }
+      });
+      let nk = 0;
+      for (let i = 0; i < pts.length - 1; i++){
+        const span = pts[i + 1] - pts[i]; let off = 150; if (span < 600){ nk++; off = 150 + (nk % 2 ? 330 : 0); }
+        const sp = textSprite(String(Math.round(span)), Math.PI / 2);
+        sp.position.copy(P(c + side * (off + 60), (pts[i] + pts[i + 1]) / 2)); dimGroup.add(sp);
+      }
+    }
+  });
+  const lm = new THREE.LineBasicMaterial({color: 0x2a2622, depthTest: false});
+  const ls = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(solid), lm); ls.renderOrder = 10; dimGroup.add(ls);
+  const dm = new THREE.LineDashedMaterial({color: 0x6f675e, dashSize: 0.06, gapSize: 0.06, depthTest: false});
+  const ld = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(dashed), dm); ld.computeLineDistances(); ld.renderOrder = 10; dimGroup.add(ld);
+})();
+function setOrtho(on){
+  orthoOn = on;
+  $('dimBtn').setAttribute('aria-pressed', on ? 'true' : 'false');
+  dimGroup.visible = on;
+  controls.enabled = !on; controls2.enabled = on;
+  if (on){ cutBeforeDims = cutPlane.constant; setCut(1.2); fitOrtho(); ortho.zoom = 1; ortho.updateProjectionMatrix();
+           controls2.target.set(12.33, 0, -18.55); ortho.position.set(12.33, 40, -18.55); }
+  else setCut(cutBeforeDims);
+}
+$('dimBtn').addEventListener('click', () => setOrtho(!orthoOn));
+
+// =================== picking furniture / wall treatment ===================
+const ITEMS = {"BF-01": {"code": "BF-01", "name": "Dudukan bangku plywood 1865", "kind": "Furnitur built-in · 1 unit · 520 x 1865 x 145 mm", "sheet": "BF-01", "img": "gk/BF-01.jpg", "mats": ["Material model: Plywood 01 1K"]}, "BF-02": {"code": "BF-02", "name": "Top bangku keramik 2385", "kind": "Furnitur built-in · 1 unit · 500 x 2385 x 105 mm", "sheet": "BF-02", "img": "gk/BF-02.jpg", "mats": ["Material model: Tiles 05"]}, "BF-03": {"code": "BF-03", "name": "Dudukan beton bangku", "kind": "Furnitur built-in · 1 unit · 300 x 2140 x 515 mm", "sheet": "BF-03", "img": "gk/BF-03.jpg", "mats": ["Material model:   Blacktop Old 02 4"]}, "BF-04": {"code": "BF-04", "name": "Bangku planter teras 6000", "kind": "Furnitur built-in · 1 unit · 6000 x 614 x 450 mm", "sheet": "BF-04", "img": "gk/BF-04.jpg", "mats": ["Material model: Plywood 01 1K,   auto 20"]}, "BF-05": {"code": "BF-05", "name": "Dudukan bangku plywood teras 7820", "kind": "Furnitur built-in · 1 unit · 7820 x 540 x 145 mm", "sheet": "BF-05", "img": "gk/BF-05.jpg", "mats": ["Material model: Plywood 01 1K"]}, "BF-06": {"code": "BF-06", "name": "Top bangku keramik 7820", "kind": "Furnitur built-in · 1 unit · 7820 x 300 x 105 mm", "sheet": "BF-06", "img": "gk/BF-06.jpg", "mats": ["Material model: Tiles 05"]}, "BF-07": {"code": "BF-07", "name": "Rak display dinding 1240 (aluminium + akrilik)", "kind": "Furnitur built-in · 5 unit · 400 x 1240 x 2220 mm", "sheet": "BF-07", "img": "gk/BF-07.jpg", "mats": ["Material model:   0126 Violet 9, Aluminum 03  Worn18, Aluminum 03  Worn12 23, acrylic non shade, Aluminum 03  Worn18 25"]}, "BF-08": {"code": "BF-08", "name": "Rak display jendela depan 5380", "kind": "Furnitur built-in · 1 unit · 5380 x 540 x 2220 mm", "sheet": "BF-08", "img": "gk/BF-08.jpg", "mats": ["Material model:   0126 Violet 9, Aluminum 03  Worn12 23, Aluminum 03  Worn18"]}, "BF-09": {"code": "BF-09", "name": "Meja display island (pulau) 3240", "kind": "Furnitur built-in · 2 unit · 3240 x 900 x 1500 mm", "sheet": "BF-09", "img": "gk/BF-09.jpg", "mats": ["Material model: Aluminum 03  Worn4, Aluminum 03  Worn7 24, Plywood 01 1K2 19"]}, "BF-10": {"code": "BF-10", "name": "Rak display dinding 3840", "kind": "Furnitur built-in · 1 unit · 290 x 3840 x 2250 mm", "sheet": "BF-10", "img": "gk/BF-10.jpg", "mats": ["Material model:   0126 Violet 9"]}, "BF-11": {"code": "BF-11", "name": "Rak display jendela depan 4690", "kind": "Furnitur built-in · 1 unit · 4690 x 560 x 2666 mm", "sheet": "BF-11", "img": "gk/BF-11.jpg", "mats": ["Material model:   0126 Violet 9, Aluminum 03  Worn12 23, Aluminum 03  Worn24, Aluminum 03  Worn18, tile 5x5 porcelain1"]}, "BF-12": {"code": "BF-12", "name": "Rak display jendela samping 4355", "kind": "Furnitur built-in · 1 unit · 530 x 4355 x 2240 mm", "sheet": "BF-12", "img": "gk/BF-12.jpg", "mats": ["Material model:   0126 Violet 9, Aluminum 03  Worn18, Aluminum 03  Worn12 23, Aluminum 03  Worn24"]}, "BF-13": {"code": "BF-13", "name": "Display podium tembaga", "kind": "Furnitur built-in · 1 unit · 1000 x 2995 x 1000 mm", "sheet": "BF-13", "img": "gk/BF-13.jpg", "mats": ["Material model: copper  master  1, Aluminum 03  Worn13, copper  master "]}, "BF-14": {"code": "BF-14", "name": "Rak display akrilik 400", "kind": "Furnitur built-in · 2 unit · 400 x 504 x 2220 mm", "sheet": "BF-14", "img": "gk/BF-14.jpg", "mats": ["Material model:   0126 Violet 9, acrylic non shade, Aluminum 03  Worn18 25, Wood 36, Aluminum 03  Worn18"]}, "BF-15": {"code": "BF-15", "name": "Rak sudut + cermin 548", "kind": "Furnitur built-in · 1 unit · 548 x 548 x 2220 mm", "sheet": "BF-15", "img": "gk/BF-15.jpg", "mats": ["Material model:   0126 Violet 9, Steel 15  Grid 2, Glass Mirror 01, Aluminum 03  Worn12 23"]}, "BF-16": {"code": "BF-16", "name": "Rak + cermin 475", "kind": "Furnitur built-in · 1 unit · 475 x 400 x 2220 mm", "sheet": "BF-16", "img": "gk/BF-16.jpg", "mats": ["Material model: Aluminum 03  Worn18 25, Steel 15  Grid 2, Glass Mirror 01,   0126 Violet 9"]}, "BF-17": {"code": "BF-17", "name": "Bangku planter teras 4182", "kind": "Furnitur built-in · 1 unit · 614 x 4182 x 450 mm", "sheet": "BF-17", "img": "gk/BF-17.jpg", "mats": ["Material model: Plywood 01 1K,   auto 20"]}, "BF-18": {"code": "BF-18", "name": "Cermin dinding 600", "kind": "Furnitur built-in · 1 unit · 600 x 40 x 2100 mm", "sheet": "BF-18", "img": "gk/BF-18.jpg", "mats": ["Material model:   0126 Violet 2, Steel 15  Grid 2, Glass Mirror 01"]}, "BF-19": {"code": "BF-19", "name": "Panel poster dinding 1290", "kind": "Furnitur built-in · 1 unit · 290 x 1290 x 3131 mm", "sheet": "BF-19", "img": "gk/BF-19.jpg", "mats": ["Material model: Aluminum 03  Worn17, IMG-20260713-WA0003.jpg"]}, "BF-20": {"code": "BF-20", "name": "Rak display + cermin (lengkung) 3080", "kind": "Furnitur built-in · 1 unit · 400 x 3080 x 2380 mm", "sheet": "BF-20", "img": "gk/BF-20.jpg", "mats": ["Material model:   0126 Violet 9, Steel 15  Grid 2, Glass Mirror 01,   0126 Violet 9 18, Aluminum 03  Worn17"]}, "BF-21": {"code": "BF-21", "name": "Panel display dinding 1300", "kind": "Furnitur built-in · 1 unit · 1300 x 180 x 2800 mm", "sheet": "BF-21", "img": "gk/BF-21.jpg", "mats": ["Material model:   0126 Violet 9, Wood 36,   0126 Violet 11"]}, "BF-22": {"code": "BF-22", "name": "Rak display dinding 4750", "kind": "Furnitur built-in · 1 unit · 4750 x 350 x 2830 mm", "sheet": "BF-22", "img": "gk/BF-22.jpg", "mats": ["Material model:   0126 Violet 9"]}, "BF-23": {"code": "BF-23", "name": "Rak display jendela samping 4480", "kind": "Furnitur built-in · 1 unit · 550 x 4480 x 2380 mm", "sheet": "BF-23", "img": "gk/BF-23.jpg", "mats": ["Material model:   0126 Violet 9, Aluminum 03  Worn3 14,   0126 Violet 9 18, acrylic non shade, Aluminum 03  Worn12 23"]}, "BF-24": {"code": "BF-24", "name": "Rak sudut aluminium 902", "kind": "Furnitur built-in · 2 unit · 858 x 902 x 1530 mm", "sheet": "BF-24", "img": "gk/BF-24.jpg", "mats": ["Material model: Aluminum 03  Worn15"]}, "BF-25": {"code": "BF-25", "name": "Bangku planter teras 1459", "kind": "Furnitur built-in · 1 unit · 1459 x 614 x 450 mm", "sheet": "BF-25", "img": "gk/BF-25.jpg", "mats": ["Material model: Plywood 01 1K,   auto 20"]}, "BF-26": {"code": "BF-26", "name": "Rak aluminium 1232", "kind": "Furnitur built-in · 2 unit · 1232 x 400 x 1530 mm", "sheet": "BF-26", "img": "gk/BF-26.jpg", "mats": ["Material model: Aluminum 03  Worn15"]}, "BF-27": {"code": "BF-27", "name": "Rak display dinding 1240", "kind": "Furnitur built-in · 6 unit · 400 x 1240 x 2400 mm", "sheet": "BF-27", "img": "gk/BF-27.jpg", "mats": ["Material model:   0126 Violet 9,   0126 Violet 3,   0126 Violet 2, Plywood 01 1K4"]}, "BF-28": {"code": "BF-28", "name": "Panel/rak dinding kayu 1985", "kind": "Furnitur built-in · 1 unit · 1985 x 290 x 2830 mm", "sheet": "BF-28", "img": "gk/BF-28.jpg", "mats": ["Material model: Wood 36"]}, "BF-29": {"code": "BF-29", "name": "Rak aluminium 1240", "kind": "Furnitur built-in · 1 unit · 400 x 1240 x 1530 mm", "sheet": "BF-29", "img": "gk/BF-29.jpg", "mats": ["Material model: Aluminum 03  Worn15"]}, "BF-30": {"code": "BF-30", "name": "Panel poster dinding 1860 (h 2630)", "kind": "Furnitur built-in · 1 unit · 290 x 1860 x 2630 mm", "sheet": "BF-30", "img": "gk/BF-30.jpg", "mats": ["Material model: A08 Garnet Shadow, IMG-20260713-WA0003.jpg 34, Aluminum 03  Worn17"]}, "BF-31": {"code": "BF-31", "name": "Rak display kolom 500", "kind": "Furnitur built-in · 3 unit · 500 x 500 x 2050 mm", "sheet": "BF-31", "img": "gk/BF-31.jpg", "mats": ["Material model:   0126 Violet 9"]}, "BF-32": {"code": "BF-32", "name": "Panel poster dinding 1860", "kind": "Furnitur built-in · 1 unit · 290 x 1860 x 3080 mm", "sheet": "BF-32", "img": "gk/BF-32.jpg", "mats": ["Material model: A08 Garnet Shadow, IMG-20260713-WA0003.jpg 34, Aluminum 03  Worn17"]}, "BF-33": {"code": "BF-33", "name": "Rak display + cermin 4670", "kind": "Furnitur built-in · 1 unit · 4670 x 400 x 2380 mm", "sheet": "BF-33", "img": "gk/BF-33.jpg", "mats": ["Material model: Wood 36, Steel 15  Grid 2, Glass Mirror 01,   0126 Violet 9,   0126 Violet 10"]}, "BF-34": {"code": "BF-34", "name": "Rak display 1000", "kind": "Furnitur built-in · 1 unit · 1000 x 420 x 2380 mm", "sheet": "BF-34", "img": "gk/BF-34.jpg", "mats": ["Material model:   0126 Violet 9"]}, "BF-35": {"code": "BF-35", "name": "Rak sudut + cermin 364", "kind": "Furnitur built-in · 1 unit · 364 x 364 x 2380 mm", "sheet": "BF-35", "img": "gk/BF-35.jpg", "mats": ["Material model:   0126 Violet 9, Steel 15  Grid 2, Glass Mirror 01"]}, "BF-36": {"code": "BF-36", "name": "Rak display 1034", "kind": "Furnitur built-in · 1 unit · 400 x 1034 x 2380 mm", "sheet": "BF-36", "img": "gk/BF-36.jpg", "mats": ["Material model:   0126 Violet 9,   0126 Violet 10"]}, "BF-37": {"code": "BF-37", "name": "Rak display 1000", "kind": "Furnitur built-in · 1 unit · 400 x 1000 x 2380 mm", "sheet": "BF-37", "img": "gk/BF-37.jpg", "mats": ["Material model:   0126 Violet 9,   0126 Violet 10"]}, "BF-38": {"code": "BF-38", "name": "Kamar pas (fitting room) + tirai", "kind": "Furnitur built-in · 1 unit · 858 x 1248 x 2180 mm", "sheet": "BF-38", "img": "gk/BF-38.jpg", "mats": ["Material model:   0126 Violet 14,   0126 Violet 14 31,   LC Curtains Material1"]}, "BF-39": {"code": "BF-39", "name": "Rak dinding kamar pas 3770", "kind": "Furnitur built-in · 1 unit · 400 x 3770 x 2180 mm", "sheet": "BF-39", "img": "gk/BF-39.jpg", "mats": ["Material model:   0126 Violet 14,   0126 Violet 14 31"]}, "BF-40": {"code": "BF-40", "name": "Tirai kamar pas", "kind": "Furnitur built-in · 1 unit · 300 x 2510 x 1035 mm", "sheet": "BF-40", "img": "gk/BF-40.jpg", "mats": ["Material model:   0126 Violet 14,   LC Curtains Material1"]}, "BF-41": {"code": "BF-41", "name": "Lemari 1040", "kind": "Furnitur built-in · 1 unit · 1040 x 400 x 1980 mm", "sheet": "BF-41", "img": "gk/BF-41.jpg", "mats": ["Material model:   0126 Violet 14,   0126 Violet 14 31"]}, "BF-42": {"code": "BF-42", "name": "Rak atas 1040", "kind": "Furnitur built-in · 1 unit · 1040 x 400 x 350 mm", "sheet": "BF-42", "img": "gk/BF-42.jpg", "mats": ["Material model:   0126 Violet 14,   0126 Violet 14 31"]}, "BF-43": {"code": "BF-43", "name": "Rak display 554", "kind": "Furnitur built-in · 1 unit · 554 x 400 x 2180 mm", "sheet": "BF-43", "img": "gk/BF-43.jpg", "mats": ["Material model:   0126 Violet 14,   0126 Violet 14 31, Aluminum 03  Worn20"]}, "BF-44": {"code": "BF-44", "name": "Panel/rak dinding aluminium 1985", "kind": "Furnitur built-in · 1 unit · 1985 x 320 x 2880 mm", "sheet": "BF-44", "img": "gk/BF-44.jpg", "mats": ["Material model: Aluminum 03  Worn17"]}, "BF-45": {"code": "BF-45", "name": "Panel/rak dinding aluminium 3878", "kind": "Furnitur built-in · 2 unit · 290 x 3878 x 2880 mm", "sheet": "BF-45", "img": "gk/BF-45.jpg", "mats": ["Material model: Aluminum 03  Worn17"]}, "BF-46": {"code": "BF-46", "name": "Rak display dinding akrilik 4940", "kind": "Furnitur built-in · 2 unit · 4940 x 400 x 2500 mm", "sheet": "BF-46", "img": "gk/BF-46.jpg", "mats": ["Material model: acrylic non shade, Wood 36, Aluminum 03  Worn2,   0126 Violet 14, Aluminum 03  Worn2 30"]}, "BF-47": {"code": "BF-47", "name": "Meja kasir / display lengkung kayu cherry", "kind": "Furnitur built-in · 1 unit · 3400 x 1400 x 1750 mm", "sheet": "BF-47", "img": "gk/BF-47.jpg", "mats": ["Material model: Aluminum 03  Worn4, Aluminum 03  Worn12, Wood Cherry Original, Aluminum 03  Worn13, B03 Apricot Glow3"]}, "BF-48": {"code": "BF-48", "name": "Rak display dinding 2945", "kind": "Furnitur built-in · 1 unit · 2945 x 400 x 2100 mm", "sheet": "BF-48", "img": "gk/BF-48.jpg", "mats": ["Material model:  0100 SteelBlue,   0126 Violet 14"]}, "BF-49": {"code": "BF-49", "name": "Panel kayu samping bay window", "kind": "Furnitur built-in · 1 unit · 380 x 3000 x 2600 mm", "sheet": "BF-49", "img": "gk/BF-49.jpg", "mats": ["Material model: Wood 36"]}, "BF-50": {"code": "BF-50", "name": "Podium aluminium", "kind": "Furnitur built-in · 1 unit · 1070 x 1284 x 500 mm", "sheet": "BF-50", "img": "gk/BF-50.jpg", "mats": ["Material model: Aluminum 03  Worn15"]}, "BF-51": {"code": "BF-51", "name": "Podium bay window", "kind": "Furnitur built-in · 1 unit · 1670 x 3260 x 230 mm", "sheet": "BF-51", "img": "gk/BF-51.jpg", "mats": ["Material model:  0100 SteelBlue"]}, "BF-52": {"code": "BF-52", "name": "Display bay window (etalase segi delapan)", "kind": "Furnitur built-in · 1 unit · 1710 x 3340 x 1630 mm", "sheet": "BF-52", "img": "gk/BF-52.jpg", "mats": ["Material model:   auto 10, Glass Basic 01, Stone 01  Wall3,  0100 SteelBlue"]}, "BF-53": {"code": "BF-53", "name": "Bangku / podium 1520", "kind": "Furnitur built-in · 1 unit · 1520 x 3000 x 450 mm", "sheet": "BF-53", "img": "gk/BF-53.jpg", "mats": ["Material model: SimplygonCastMaterial13,   0126 Violet 14"]}, "BF-54": {"code": "BF-54", "name": "Meja display island 3560", "kind": "Furnitur built-in · 1 unit · 3560 x 900 x 1500 mm", "sheet": "BF-54", "img": "gk/BF-54.jpg", "mats": ["Material model: Aluminum 03  Worn2, Plywood 01 1K2 19"]}, "BF-55": {"code": "BF-55", "name": "Bangku HPL 1550", "kind": "Furnitur built-in · 2 unit · 450 x 1550 x 400 mm", "sheet": "BF-55", "img": "gk/BF-55.jpg", "mats": ["Material model: TH L5027 NT eb08639949"]}, "BF-56": {"code": "BF-56", "name": "Lemari kaca dinding 1850", "kind": "Furnitur built-in · 1 unit · 1850 x 200 x 2140 mm", "sheet": "BF-56", "img": "gk/BF-56.jpg", "mats": ["Material model: TH L5027 NT eb08639949, Glass Basic 01"]}, "BF-57": {"code": "BF-57", "name": "Panel dinding HPL 1805", "kind": "Furnitur built-in · 1 unit · 1805 x 180 x 2030 mm", "sheet": "BF-57", "img": "gk/BF-57.jpg", "mats": ["Material model: TH L5027 NT eb08639949"]}, "BF-58": {"code": "BF-58", "name": "Meja bar (counter) + bak es & galon", "kind": "Furnitur built-in · 1 unit · 4800 x 2510 x 1200 mm", "sheet": "BF-58", "img": "gk/BF-58.jpg", "mats": ["Material model: TH L5027 NT eb08639949, Plaster 04 1K, Pinstripe Tile Stack 765 x 140 mm  DM1FQT 1,  0030 OldLace,   0133 Gray 1"]}, "BF-59": {"code": "BF-59", "name": "Panel dinding HPL 1600", "kind": "Furnitur built-in · 1 unit · 1600 x 140 x 2610 mm", "sheet": "BF-59", "img": "gk/BF-59.jpg", "mats": ["Material model: TH L5027 NT eb08639949"]}, "BF-60": {"code": "BF-60", "name": "Lemari HPL 1240", "kind": "Furnitur built-in · 2 unit · 1240 x 320 x 2550 mm", "sheet": "BF-60", "img": "gk/BF-60.jpg", "mats": ["Material model: TH L5027 NT eb08639949, Plywood 01 1K7,   0126 Violet 8"]}, "BF-61": {"code": "BF-61", "name": "Rak display akrilik 1030", "kind": "Furnitur built-in · 1 unit · 1030 x 400 x 2500 mm", "sheet": "BF-61", "img": "gk/BF-61.jpg", "mats": ["Material model: acrylic non shade,   0126 Violet 14"]}, "BF-62": {"code": "BF-62", "name": "Partisi tirai kanvas", "kind": "Furnitur built-in · 1 unit · 1570 x 155 x 2300 mm", "sheet": "BF-62", "img": "gk/BF-62.jpg", "mats": ["Material model:   LC Curtains Material, canvas 1  master 5,   LC Curtains Material3,   LC Curtains Material1"]}, "BF-63": {"code": "BF-63", "name": "Rak display poster 945", "kind": "Furnitur built-in · 1 unit · 945 x 420 x 2079 mm", "sheet": "BF-63", "img": "gk/BF-63.jpg", "mats": ["Material model: Color M07, Color M03, mNCAvQ9XvWh4NTp7q6Fz3b-1200-80,   0126 Violet 14, acrylic non shade"]}, "BF-64": {"code": "BF-64", "name": "Rak display akrilik 945", "kind": "Furnitur built-in · 1 unit · 945 x 420 x 2500 mm", "sheet": "BF-64", "img": "gk/BF-64.jpg", "mats": ["Material model: acrylic non shade,   0126 Violet 14"]}, "BF-65": {"code": "BF-65", "name": "Meja bar belakang (back counter)", "kind": "Furnitur built-in · 1 unit · 500 x 2400 x 740 mm", "sheet": "BF-65", "img": "gk/BF-65.jpg", "mats": ["Material model: TH L5027 NT eb08639949, Aluminum 03  Worn27"]}, "LF-01": {"code": "LF-01", "name": "Lampu meja / dekorasi", "kind": "Furnitur lepas · 1 unit · 350 x 350 x 860 mm", "sheet": "LF-01", "img": "gk/LF-01.jpg", "mats": ["Material model: Aluminum 03  Worn18,  0128 White, Aluminum 03  Worn15, Sandstone,   Metal Corrugated Shiny 11 20"]}, "LF-02": {"code": "LF-02", "name": "Set bangku + meja teras (4 stool)", "kind": "Furnitur lepas · 1 unit · 2033 x 3200 x 981 mm", "sheet": "LF-02", "img": "gk/LF-02.jpg", "mats": ["Material model: Aluminum 03  Worn20,   0136 Charcoal 5,  0030 OldLace,   0133 Gray 1, Metal 06 1K"]}, "LF-03": {"code": "LF-03", "name": "Meja / counter 3200", "kind": "Furnitur lepas · 1 unit · 2033 x 3200 x 981 mm", "sheet": "LF-03", "img": "gk/LF-03.jpg", "mats": ["Material model: Aluminum 03  Worn20,   0136 Charcoal 5,  0030 OldLace,   0133 Gray 1, Metal 06 1K"]}, "LF-04": {"code": "LF-04", "name": "Meja / counter 3200", "kind": "Furnitur lepas · 1 unit · 2033 x 3200 x 981 mm", "sheet": "LF-04", "img": "gk/LF-04.jpg", "mats": ["Material model: Aluminum 03  Worn20,   0136 Charcoal 5,  0030 OldLace,   0133 Gray 1, Metal 06 1K"]}, "LF-05": {"code": "LF-05", "name": "Meja / counter 3200", "kind": "Furnitur lepas · 1 unit · 2033 x 3200 x 981 mm", "sheet": "LF-05", "img": "gk/LF-05.jpg", "mats": ["Material model: Aluminum 03  Worn20,   0136 Charcoal 5,  0030 OldLace,   0133 Gray 1, Metal 06 1K"]}, "LF-06": {"code": "LF-06", "name": "Meja display 1500", "kind": "Furnitur lepas · 1 unit · 1500 x 1500 x 850 mm", "sheet": "LF-06", "img": "gk/LF-06.jpg", "mats": ["Material model: Aluminum 03  Worn17 29,   0126 Violet 14"]}, "LF-07": {"code": "LF-07", "name": "Stool bar", "kind": "Furnitur lepas · 1 unit · 500 x 500 x 670 mm", "sheet": "LF-07", "img": "gk/LF-07.jpg", "mats": ["Material model:   auto 19, chrome44,   0128 White 2,   0126 Violet 1"]}, "LF-08": {"code": "LF-08", "name": "Kursi kafe (Reidar)", "kind": "Furnitur lepas · 6 unit · 466 x 427 x 784 mm", "sheet": "LF-08", "img": "gk/LF-08.jpg", "mats": ["Material model: Aluminum 03  Worn26"]}, "LF-09": {"code": "LF-09", "name": "Kursi santai panjang", "kind": "Furnitur lepas · 6 unit · 500 x 1489 x 784 mm", "sheet": "LF-09", "img": "gk/LF-09.jpg", "mats": ["Material model:   auto 19, chrome44,   0128 White 2,   0126 Violet 1, Aluminum 03  Worn14"]}, "LF-10": {"code": "LF-10", "name": "Meja kafe luar", "kind": "Furnitur lepas · 1 unit · 1918 x 600 x 500 mm", "sheet": "LF-10", "img": "gk/LF-10.jpg", "mats": ["Material model: Aluminum 03  Worn12 23, Polished Concrete New"]}, "WT-01": {"code": "WT-01", "name": "Mosaic porcelain putih fasad kiri", "kind": "Wall treatment · mosaic porcelain putih 5x5", "sheet": "WT-01", "img": "gk/WT-01.jpg", "mats": ["MOSAIC PORCELAIN PUTIH 5x5"]}, "WT-02": {"code": "WT-02", "name": "Mosaic porcelain putih fasad kanan", "kind": "Wall treatment · mosaic porcelain putih 5x5", "sheet": "WT-02", "img": "gk/WT-02.jpg", "mats": ["MOSAIC PORCELAIN PUTIH 5x5"]}, "WT-03": {"code": "WT-03", "name": "Panel kayu dinding samping teras", "kind": "Wall treatment · panel kayu", "sheet": "WT-03", "img": "gk/WT-03.jpg", "mats": ["PANEL KAYU"]}, "WT-04": {"code": "WT-04", "name": "Panel akrilik & HPL kamar pas", "kind": "Wall treatment · akrilik + hpl", "sheet": "WT-04", "img": "gk/WT-04.jpg", "mats": ["AKRILIK + HPL"]}, "WT-05": {"code": "WT-05", "name": "Panel print gambar dinding", "kind": "Wall treatment · uv print / sticker", "sheet": "WT-05", "img": "gk/WT-05.jpg", "mats": ["UV PRINT / STICKER"]}, "WT-06": {"code": "WT-06", "name": "Panel dinding putih dekoratif", "kind": "Wall treatment · panel putih", "sheet": "WT-06", "img": "gk/WT-06.jpg", "mats": ["PANEL PUTIH"]}, "PS-01": {"code": "PS-01", "name": "Dinding partisi GRC 3125 (ruang display lengkung)", "kind": "Partisi · grc board + metal stud", "sheet": "PS-01", "img": "gk/PS-01.jpg", "mats": ["GRC BOARD + METAL STUD"]}, "PS-02": {"code": "PS-02", "name": "Dinding partisi GRC 1960", "kind": "Partisi · grc board + metal stud", "sheet": "PS-02", "img": "gk/PS-02.jpg", "mats": ["GRC BOARD + METAL STUD"]}, "PS-03": {"code": "PS-03", "name": "Dinding partisi GRC 2555 (teras samping)", "kind": "Partisi · grc board + metal stud", "sheet": "PS-03", "img": "gk/PS-03.jpg", "mats": ["GRC BOARD + METAL STUD"]}, "P-01": {"code": "P-01", "name": "Pintu kaca 908 x 2240", "kind": "Pintu / jendela · 908 x 40 x 2240 mm", "sheet": "P-01", "img": "gk/P-01.jpg", "mats": ["Kusen hollow 4x8; daun hollow 4x4 finishing kertasive / kaca sesuai gambar kerja *"]}, "P-02": {"code": "P-02", "name": "Pintu kaca 822 x 2240", "kind": "Pintu / jendela · 822 x 40 x 2240 mm", "sheet": "P-02", "img": "gk/P-02.jpg", "mats": ["Kusen hollow 4x8; daun hollow 4x4 finishing kertasive / kaca sesuai gambar kerja *"]}, "P-03": {"code": "P-03", "name": "Pintu kaca 919 x 2240", "kind": "Pintu / jendela · 919 x 40 x 2240 mm", "sheet": "P-03", "img": "gk/P-03.jpg", "mats": ["Kusen hollow 4x8; daun hollow 4x4 finishing kertasive / kaca sesuai gambar kerja *"]}, "P-04": {"code": "P-04", "name": "Pintu kaca 2130 x 2220", "kind": "Pintu / jendela · 115 x 2130 x 2220 mm", "sheet": "P-04", "img": "gk/P-04.jpg", "mats": ["Kusen hollow 4x8; daun hollow 4x4 finishing kertasive / kaca sesuai gambar kerja *"]}, "P-05": {"code": "P-05", "name": "Pintu kaca 935 x 2240", "kind": "Pintu / jendela · 935 x 30 x 2240 mm", "sheet": "P-05", "img": "gk/P-05.jpg", "mats": ["Kusen hollow 4x8; daun hollow 4x4 finishing kertasive / kaca sesuai gambar kerja *"]}, "P-06": {"code": "P-06", "name": "Pintu kayu 1150 x 2190", "kind": "Pintu / jendela · 1150 x 75 x 2190 mm", "sheet": "P-06", "img": "gk/P-06.jpg", "mats": ["Kusen hollow 4x8; daun hollow 4x4 finishing kertasive / kaca sesuai gambar kerja *"]}, "P-07": {"code": "P-07", "name": "Pintu kayu 2300 x 2190", "kind": "Pintu / jendela · 2300 x 100 x 2190 mm", "sheet": "P-07", "img": "gk/P-07.jpg", "mats": ["Kusen hollow 4x8; daun hollow 4x4 finishing kertasive / kaca sesuai gambar kerja *"]}, "P-08": {"code": "P-08", "name": "Pintu kaca 2493 x 2460", "kind": "Pintu / jendela · 2493 x 80 x 2460 mm", "sheet": "P-08", "img": "gk/P-08.jpg", "mats": ["Kusen hollow 4x8; daun hollow 4x4 finishing kertasive / kaca sesuai gambar kerja *"]}, "P-09": {"code": "P-09", "name": "Pintu kayu 1550 x 2520", "kind": "Pintu / jendela · 1550 x 185 x 2520 mm", "sheet": "P-09", "img": "gk/P-09.jpg", "mats": ["Kusen hollow 4x8; daun hollow 4x4 finishing kertasive / kaca sesuai gambar kerja *"]}, "P-10": {"code": "P-10", "name": "Pintu kayu 1555 x 2520", "kind": "Pintu / jendela · 1555 x 100 x 2520 mm", "sheet": "P-10", "img": "gk/P-10.jpg", "mats": ["Kusen hollow 4x8; daun hollow 4x4 finishing kertasive / kaca sesuai gambar kerja *"]}, "P-11": {"code": "P-11", "name": "Pintu kayu 900 x 1895", "kind": "Pintu / jendela · 80 x 900 x 1895 mm", "sheet": "P-11", "img": "gk/P-11.jpg", "mats": ["Kusen hollow 4x8; daun hollow 4x4 finishing kertasive / kaca sesuai gambar kerja *"]}, "P-12": {"code": "P-12", "name": "Pintu 900 x 2100", "kind": "Pintu / jendela · 40 x 900 x 2100 mm", "sheet": "P-12", "img": "gk/P-12.jpg", "mats": ["Kusen hollow 4x8; daun hollow 4x4 finishing kertasive / kaca sesuai gambar kerja *"]}, "P-13": {"code": "P-13", "name": "Pintu 820 x 2060", "kind": "Pintu / jendela · 40 x 820 x 2060 mm", "sheet": "P-13", "img": "gk/P-13.jpg", "mats": ["Kusen hollow 4x8; daun hollow 4x4 finishing kertasive / kaca sesuai gambar kerja *"]}, "P-14": {"code": "P-14", "name": "Pintu kayu 1200 x 1895", "kind": "Pintu / jendela · 80 x 1200 x 1895 mm", "sheet": "P-14", "img": "gk/P-14.jpg", "mats": ["Kusen hollow 4x8; daun hollow 4x4 finishing kertasive / kaca sesuai gambar kerja *"]}, "P-15": {"code": "P-15", "name": "Pintu kaca 1740 x 2110", "kind": "Pintu / jendela · 1740 x 100 x 2110 mm", "sheet": "P-15", "img": "gk/P-15.jpg", "mats": ["Kusen hollow 4x8; daun hollow 4x4 finishing kertasive / kaca sesuai gambar kerja *"]}, "P-16": {"code": "P-16", "name": "Pintu kaca 1200 x 2110", "kind": "Pintu / jendela · 1200 x 140 x 2110 mm", "sheet": "P-16", "img": "gk/P-16.jpg", "mats": ["Kusen hollow 4x8; daun hollow 4x4 finishing kertasive / kaca sesuai gambar kerja *"]}, "P-17": {"code": "P-17", "name": "Pintu kaca 2000 x 2110", "kind": "Pintu / jendela · 2000 x 100 x 2110 mm", "sheet": "P-17", "img": "gk/P-17.jpg", "mats": ["Kusen hollow 4x8; daun hollow 4x4 finishing kertasive / kaca sesuai gambar kerja *"]}, "P-18": {"code": "P-18", "name": "Pintu kaca 1510 x 2530", "kind": "Pintu / jendela · 1510 x 100 x 2530 mm", "sheet": "P-18", "img": "gk/P-18.jpg", "mats": ["Kusen hollow 4x8; daun hollow 4x4 finishing kertasive / kaca sesuai gambar kerja *"]}, "P-19": {"code": "P-19", "name": "Pintu 880 x 2100", "kind": "Pintu / jendela · 880 x 100 x 2100 mm", "sheet": "P-19", "img": "gk/P-19.jpg", "mats": ["Kusen hollow 4x8; daun hollow 4x4 finishing kertasive / kaca sesuai gambar kerja *"]}, "P-20": {"code": "P-20", "name": "Pintu 760 x 2040", "kind": "Pintu / jendela · 760 x 40 x 2040 mm", "sheet": "P-20", "img": "gk/P-20.jpg", "mats": ["Kusen hollow 4x8; daun hollow 4x4 finishing kertasive / kaca sesuai gambar kerja *"]}, "SG-01": {"code": "SG-01", "name": "Signage huruf timbul SECTE BEAUTE fasad depan", "kind": "Signage · 5815 x 64 x 600 mm", "sheet": "SG-01", "img": "gk/SG-01.jpg", "mats": ["Artwork sesuai model; titik daya lihat ME-01"]}, "SG-02": {"code": "SG-02", "name": "Signage huruf timbul samping (teras kanan)", "kind": "Signage · 12 x 2461 x 274 mm", "sheet": "SG-02", "img": "gk/SG-02.jpg", "mats": ["Artwork sesuai model; titik daya lihat ME-01"]}, "FL-01": {"code": "FL-01", "name": "Lantai keramik/homogenous tile coklat tua 600x600 *", "kind": "Material lantai", "sheet": "A-02", "img": "gk/A-02.jpg", "mats": ["Material model: Tiles 04 1"]}, "FL-02": {"code": "FL-02", "name": "Lantai granit/teraso krem (border & area tengah) *", "kind": "Material lantai", "sheet": "A-02", "img": "gk/A-02.jpg", "mats": ["Material model: M04 Stone Frost"]}, "FL-03": {"code": "FL-03", "name": "Lantai keramik motif krem-abu 300x300 *", "kind": "Material lantai", "sheet": "A-02", "img": "gk/A-02.jpg", "mats": ["Material model: Tiles 41 10"]}, "FL-04": {"code": "FL-04", "name": "Lantai/rabat beton acian halus (eksisting) *", "kind": "Material lantai", "sheet": "A-02", "img": "gk/A-02.jpg", "mats": ["Material model: Plaster 04 1K"]}, "FL-05": {"code": "FL-05", "name": "List lantai keramik hijau (ambang pintu) *", "kind": "Material lantai", "sheet": "A-02", "img": "gk/A-02.jpg", "mats": ["Material model: C04 Amber Sunshine"]}, "FL-06": {"code": "FL-06", "name": "Paving block pola herringbone (teras depan)", "kind": "Material lantai", "sheet": "A-02", "img": "gk/A-02.jpg", "mats": ["Material model: Pavement 13  Herringbone 11"]}, "FL-07": {"code": "FL-07", "name": "Keramik teras abu 300x300 (taman belakang) *", "kind": "Material lantai", "sheet": "A-02", "img": "gk/A-02.jpg", "mats": ["Material model: Tiles 2"]}, "FL-08": {"code": "FL-08", "name": "Keramik 300x300 (ruang servis) *", "kind": "Material lantai", "sheet": "A-02", "img": "gk/A-02.jpg", "mats": ["Material model: Tiles 41"]}, "FL-09": {"code": "FL-09", "name": "Granit coklat 600x600 (ruang servis) *", "kind": "Material lantai", "sheet": "A-02", "img": "gk/A-02.jpg", "mats": ["Material model: Granite Stack 2012 x 2012 mm  5U5DR2 "]}, "FL-10": {"code": "FL-10", "name": "Lantai beton/batu step teras *", "kind": "Material lantai", "sheet": "A-02", "img": "gk/A-02.jpg", "mats": ["Material model: Stone 01  Wall1"]}, "FL-11": {"code": "FL-11", "name": "Paving herringbone (pergola belakang)", "kind": "Material lantai", "sheet": "A-02", "img": "gk/A-02.jpg", "mats": ["Material model: Pavement 13  Herringbone"]}, "FL-12": {"code": "FL-12", "name": "Plester/beton tangga & ramp teras *", "kind": "Material lantai", "sheet": "A-02", "img": "gk/A-02.jpg", "mats": ["Material model: Stone 01  Wall1 9"]}, "FL-13": {"code": "FL-13", "name": "Keramik coklat (selasar) *", "kind": "Material lantai", "sheet": "A-02", "img": "gk/A-02.jpg", "mats": ["Material model: Tiles 04 2"]}, "W1": {"code": "W1", "name": "Dinding bata eksisting (tebal ±250)", "kind": "Dinding eksisting (dipertahankan)", "sheet": "A-03", "img": "gk/A-03.jpg", "mats": ["Eksisting, finishing sesuai A-04"]}, "W2": {"code": "W2", "name": "Dinding / partisi GRC rangka metal stud", "kind": "Dinding / partisi baru", "sheet": "A-03", "img": "gk/A-03.jpg", "mats": ["GRC board 2 sisi, rangka metal stud, tebal 100–150, finishing cat *"]}, "PL-01": {"code": "PL-01", "name": "Plafon (datar / kayu / hall)", "kind": "Plafon · +2.60 s/d +3.94", "sheet": "A-05", "img": "gk/A-05.jpg", "mats": ["Lihat rencana plafon A-05 *"]}};
+const OBJIDS = {"1": "PL-01", "2": "P-18", "3": "W1", "4": "FL-09", "5": "FL-04", "6": "WT-04", "7": "P-10", "8": "BF-51", "9": "BF-59", "10": "BF-52", "11": "BF-03", "12": "BF-02", "13": "FL-07", "14": "FL-01", "15": "BF-56", "16": "BF-06", "17": "P-09", "18": "FL-11", "19": "W2", "20": "FL-10", "21": "FL-12", "22": "BF-05", "23": "BF-01", "24": "FL-08", "25": "P-07", "26": "FL-03", "27": "FL-13", "28": "FL-06", "29": "PS-02", "30": "PS-01", "31": "FL-05", "32": "FL-02", "33": "P-04", "34": "BF-57", "35": "BF-19", "36": "BF-28", "37": "BF-44", "38": "BF-45", "39": "BF-22", "40": "BF-10", "41": "WT-06", "42": "BF-04", "43": "LF-02", "44": "BF-20", "45": "BF-33", "46": "BF-47", "47": "BF-48", "48": "BF-53", "49": "BF-50", "50": "BF-49", "51": "BF-54", "52": "BF-18", "53": "P-11", "54": "BF-65", "55": "BF-58", "56": "BF-17", "57": "BF-25", "58": "PS-03", "59": "BF-13", "60": "LF-03", "61": "LF-04", "62": "LF-05", "63": "P-08", "64": "WT-03", "65": "BF-12", "66": "BF-11", "67": "BF-09", "68": "BF-08", "69": "BF-15", "70": "BF-14", "71": "BF-35", "72": "BF-34", "73": "BF-23", "74": "P-14", "75": "BF-16", "76": "LF-06", "77": "WT-02", "78": "WT-01", "79": "BF-46", "80": "BF-38", "81": "BF-43", "82": "SG-01", "83": "BF-63", "84": "BF-64", "85": "BF-61", "86": "BF-62", "87": "BF-40", "88": "BF-21", "89": "P-05", "90": "P-19", "91": "P-06", "92": "P-20", "93": "BF-32", "94": "BF-30", "95": "BF-27", "96": "BF-31", "97": "BF-26", "98": "BF-29", "99": "BF-24", "100": "BF-55", "101": "LF-07", "102": "LF-08", "103": "BF-60", "104": "LF-10", "105": "LF-09", "106": "P-12", "107": "P-13", "108": "P-03", "109": "P-01", "110": "P-02", "111": "WT-05", "112": "BF-07", "113": "P-16", "114": "P-15", "115": "P-17", "116": "LF-01", "117": "BF-42", "118": "BF-39", "119": "BF-41", "120": "SG-02", "121": "BF-36", "122": "BF-37"};
+const SHEETS = [{"code": "G-01", "name": "Sampul", "img": "gk/G-01.jpg"}, {"code": "G-02", "name": "Daftar isi", "img": "gk/G-02.jpg"}, {"code": "A-01", "name": "Denah furnitur (hitam putih)", "img": "gk/A-01.jpg"}, {"code": "A-01C", "name": "Denah furnitur (berwarna)", "img": "gk/A-01C.jpg"}, {"code": "A-02", "name": "Denah pola lantai (floor plan)", "img": "gk/A-02.jpg"}, {"code": "A-03", "name": "Denah dinding partisi & wall treatment", "img": "gk/A-03.jpg"}, {"code": "A-04", "name": "Denah finishing dinding", "img": "gk/A-04.jpg"}, {"code": "A-05", "name": "Denah rencana plafon (ceiling plan)", "img": "gk/A-05.jpg"}, {"code": "ME-01", "name": "Denah mekanikal & elektrikal", "img": "gk/ME-01.jpg"}, {"code": "ME-02", "name": "Denah instalasi air kotor", "img": "gk/ME-02.jpg"}, {"code": "ME-03", "name": "Denah instalasi air bersih", "img": "gk/ME-03.jpg"}, {"code": "A-06", "name": "Tampak depan", "img": "gk/A-06.jpg"}, {"code": "A-06B", "name": "Tampak samping kanan", "img": "gk/A-06B.jpg"}, {"code": "A-07", "name": "Tampak samping kiri", "img": "gk/A-07.jpg"}, {"code": "A-07B", "name": "Tampak belakang (dari batas halaman)", "img": "gk/A-07B.jpg"}, {"code": "A-08", "name": "Potongan a-a", "img": "gk/A-08.jpg"}, {"code": "A-09", "name": "Potongan b-b", "img": "gk/A-09.jpg"}, {"code": "A-10", "name": "Potongan c-c", "img": "gk/A-10.jpg"}, {"code": "A-11", "name": "Potongan d-d", "img": "gk/A-11.jpg"}, {"code": "WT-01", "name": "Mosaic porcelain putih fasad kiri", "img": "gk/WT-01.jpg"}, {"code": "WT-02", "name": "Mosaic porcelain putih fasad kanan", "img": "gk/WT-02.jpg"}, {"code": "WT-03", "name": "Panel kayu dinding samping teras", "img": "gk/WT-03.jpg"}, {"code": "WT-04", "name": "Panel akrilik & hpl kamar pas", "img": "gk/WT-04.jpg"}, {"code": "WT-05", "name": "Panel print gambar dinding", "img": "gk/WT-05.jpg"}, {"code": "WT-06", "name": "Panel dinding putih dekoratif", "img": "gk/WT-06.jpg"}, {"code": "PS-01", "name": "Dinding partisi grc 3125 (ruang display lengkung)", "img": "gk/PS-01.jpg"}, {"code": "PS-02", "name": "Dinding partisi grc 1960", "img": "gk/PS-02.jpg"}, {"code": "PS-03", "name": "Dinding partisi grc 2555 (teras samping)", "img": "gk/PS-03.jpg"}, {"code": "P-01", "name": "Pintu kaca 908 x 2240", "img": "gk/P-01.jpg"}, {"code": "P-02", "name": "Pintu kaca 822 x 2240", "img": "gk/P-02.jpg"}, {"code": "P-03", "name": "Pintu kaca 919 x 2240", "img": "gk/P-03.jpg"}, {"code": "P-04", "name": "Pintu kaca 2130 x 2220", "img": "gk/P-04.jpg"}, {"code": "P-05", "name": "Pintu kaca 935 x 2240", "img": "gk/P-05.jpg"}, {"code": "P-06", "name": "Pintu kayu 1150 x 2190", "img": "gk/P-06.jpg"}, {"code": "P-07", "name": "Pintu kayu 2300 x 2190", "img": "gk/P-07.jpg"}, {"code": "P-08", "name": "Pintu kaca 2493 x 2460", "img": "gk/P-08.jpg"}, {"code": "P-09", "name": "Pintu kayu 1550 x 2520", "img": "gk/P-09.jpg"}, {"code": "P-10", "name": "Pintu kayu 1555 x 2520", "img": "gk/P-10.jpg"}, {"code": "P-11", "name": "Pintu kayu 900 x 1895", "img": "gk/P-11.jpg"}, {"code": "P-12", "name": "Pintu 900 x 2100", "img": "gk/P-12.jpg"}, {"code": "P-13", "name": "Pintu 820 x 2060", "img": "gk/P-13.jpg"}, {"code": "P-14", "name": "Pintu kayu 1200 x 1895", "img": "gk/P-14.jpg"}, {"code": "P-15", "name": "Pintu kaca 1740 x 2110", "img": "gk/P-15.jpg"}, {"code": "P-16", "name": "Pintu kaca 1200 x 2110", "img": "gk/P-16.jpg"}, {"code": "P-17", "name": "Pintu kaca 2000 x 2110", "img": "gk/P-17.jpg"}, {"code": "P-18", "name": "Pintu kaca 1510 x 2530", "img": "gk/P-18.jpg"}, {"code": "P-19", "name": "Pintu 880 x 2100", "img": "gk/P-19.jpg"}, {"code": "P-20", "name": "Pintu 760 x 2040", "img": "gk/P-20.jpg"}, {"code": "BF-01", "name": "Dudukan bangku plywood 1865", "img": "gk/BF-01.jpg"}, {"code": "BF-02", "name": "Top bangku keramik 2385", "img": "gk/BF-02.jpg"}, {"code": "BF-03", "name": "Dudukan beton bangku", "img": "gk/BF-03.jpg"}, {"code": "BF-04", "name": "Bangku planter teras 6000", "img": "gk/BF-04.jpg"}, {"code": "BF-05", "name": "Dudukan bangku plywood teras 7820", "img": "gk/BF-05.jpg"}, {"code": "BF-06", "name": "Top bangku keramik 7820", "img": "gk/BF-06.jpg"}, {"code": "BF-07", "name": "Rak display dinding 1240 (aluminium + akrilik)", "img": "gk/BF-07.jpg"}, {"code": "BF-08", "name": "Rak display jendela depan 5380", "img": "gk/BF-08.jpg"}, {"code": "BF-09", "name": "Meja display island (pulau) 3240", "img": "gk/BF-09.jpg"}, {"code": "BF-10", "name": "Rak display dinding 3840", "img": "gk/BF-10.jpg"}, {"code": "BF-11", "name": "Rak display jendela depan 4690", "img": "gk/BF-11.jpg"}, {"code": "BF-12", "name": "Rak display jendela samping 4355", "img": "gk/BF-12.jpg"}, {"code": "BF-13", "name": "Display podium tembaga", "img": "gk/BF-13.jpg"}, {"code": "BF-14", "name": "Rak display akrilik 400", "img": "gk/BF-14.jpg"}, {"code": "BF-15", "name": "Rak sudut + cermin 548", "img": "gk/BF-15.jpg"}, {"code": "BF-16", "name": "Rak + cermin 475", "img": "gk/BF-16.jpg"}, {"code": "BF-17", "name": "Bangku planter teras 4182", "img": "gk/BF-17.jpg"}, {"code": "BF-18", "name": "Cermin dinding 600", "img": "gk/BF-18.jpg"}, {"code": "BF-19", "name": "Panel poster dinding 1290", "img": "gk/BF-19.jpg"}, {"code": "BF-20", "name": "Rak display + cermin (lengkung) 3080", "img": "gk/BF-20.jpg"}, {"code": "BF-21", "name": "Panel display dinding 1300", "img": "gk/BF-21.jpg"}, {"code": "BF-22", "name": "Rak display dinding 4750", "img": "gk/BF-22.jpg"}, {"code": "BF-23", "name": "Rak display jendela samping 4480", "img": "gk/BF-23.jpg"}, {"code": "BF-24", "name": "Rak sudut aluminium 902", "img": "gk/BF-24.jpg"}, {"code": "BF-25", "name": "Bangku planter teras 1459", "img": "gk/BF-25.jpg"}, {"code": "BF-26", "name": "Rak aluminium 1232", "img": "gk/BF-26.jpg"}, {"code": "BF-27", "name": "Rak display dinding 1240", "img": "gk/BF-27.jpg"}, {"code": "BF-28", "name": "Panel/rak dinding kayu 1985", "img": "gk/BF-28.jpg"}, {"code": "BF-29", "name": "Rak aluminium 1240", "img": "gk/BF-29.jpg"}, {"code": "BF-30", "name": "Panel poster dinding 1860 (h 2630)", "img": "gk/BF-30.jpg"}, {"code": "BF-31", "name": "Rak display kolom 500", "img": "gk/BF-31.jpg"}, {"code": "BF-32", "name": "Panel poster dinding 1860", "img": "gk/BF-32.jpg"}, {"code": "BF-33", "name": "Rak display + cermin 4670", "img": "gk/BF-33.jpg"}, {"code": "BF-34", "name": "Rak display 1000", "img": "gk/BF-34.jpg"}, {"code": "BF-35", "name": "Rak sudut + cermin 364", "img": "gk/BF-35.jpg"}, {"code": "BF-36", "name": "Rak display 1034", "img": "gk/BF-36.jpg"}, {"code": "BF-37", "name": "Rak display 1000", "img": "gk/BF-37.jpg"}, {"code": "BF-38", "name": "Kamar pas (fitting room) + tirai", "img": "gk/BF-38.jpg"}, {"code": "BF-39", "name": "Rak dinding kamar pas 3770", "img": "gk/BF-39.jpg"}, {"code": "BF-40", "name": "Tirai kamar pas", "img": "gk/BF-40.jpg"}, {"code": "BF-41", "name": "Lemari 1040", "img": "gk/BF-41.jpg"}, {"code": "BF-42", "name": "Rak atas 1040", "img": "gk/BF-42.jpg"}, {"code": "BF-43", "name": "Rak display 554", "img": "gk/BF-43.jpg"}, {"code": "BF-44", "name": "Panel/rak dinding aluminium 1985", "img": "gk/BF-44.jpg"}, {"code": "BF-45", "name": "Panel/rak dinding aluminium 3878", "img": "gk/BF-45.jpg"}, {"code": "BF-46", "name": "Rak display dinding akrilik 4940", "img": "gk/BF-46.jpg"}, {"code": "BF-47", "name": "Meja kasir / display lengkung kayu cherry", "img": "gk/BF-47.jpg"}, {"code": "BF-48", "name": "Rak display dinding 2945", "img": "gk/BF-48.jpg"}, {"code": "BF-49", "name": "Panel kayu samping bay window", "img": "gk/BF-49.jpg"}, {"code": "BF-50", "name": "Podium aluminium", "img": "gk/BF-50.jpg"}, {"code": "BF-51", "name": "Podium bay window", "img": "gk/BF-51.jpg"}, {"code": "BF-52", "name": "Display bay window (etalase segi delapan)", "img": "gk/BF-52.jpg"}, {"code": "BF-53", "name": "Bangku / podium 1520", "img": "gk/BF-53.jpg"}, {"code": "BF-54", "name": "Meja display island 3560", "img": "gk/BF-54.jpg"}, {"code": "BF-55", "name": "Bangku hpl 1550", "img": "gk/BF-55.jpg"}, {"code": "BF-56", "name": "Lemari kaca dinding 1850", "img": "gk/BF-56.jpg"}, {"code": "BF-57", "name": "Panel dinding hpl 1805", "img": "gk/BF-57.jpg"}, {"code": "BF-58", "name": "Meja bar (counter) + bak es & galon", "img": "gk/BF-58.jpg"}, {"code": "BF-59", "name": "Panel dinding hpl 1600", "img": "gk/BF-59.jpg"}, {"code": "BF-60", "name": "Lemari hpl 1240", "img": "gk/BF-60.jpg"}, {"code": "BF-61", "name": "Rak display akrilik 1030", "img": "gk/BF-61.jpg"}, {"code": "BF-62", "name": "Partisi tirai kanvas", "img": "gk/BF-62.jpg"}, {"code": "BF-63", "name": "Rak display poster 945", "img": "gk/BF-63.jpg"}, {"code": "BF-64", "name": "Rak display akrilik 945", "img": "gk/BF-64.jpg"}, {"code": "BF-65", "name": "Meja bar belakang (back counter)", "img": "gk/BF-65.jpg"}, {"code": "LF-01", "name": "Lampu meja / dekorasi", "img": "gk/LF-01.jpg"}, {"code": "LF-02", "name": "Set bangku + meja teras (4 stool)", "img": "gk/LF-02.jpg"}, {"code": "LF-03", "name": "Meja / counter 3200", "img": "gk/LF-03.jpg"}, {"code": "LF-04", "name": "Meja / counter 3200", "img": "gk/LF-04.jpg"}, {"code": "LF-05", "name": "Meja / counter 3200", "img": "gk/LF-05.jpg"}, {"code": "LF-06", "name": "Meja display 1500", "img": "gk/LF-06.jpg"}, {"code": "LF-07", "name": "Stool bar", "img": "gk/LF-07.jpg"}, {"code": "LF-08", "name": "Kursi kafe (reidar)", "img": "gk/LF-08.jpg"}, {"code": "LF-09", "name": "Kursi santai panjang", "img": "gk/LF-09.jpg"}, {"code": "LF-10", "name": "Meja kafe luar", "img": "gk/LF-10.jpg"}, {"code": "SG-01", "name": "Signage huruf timbul secte beaute fasad depan", "img": "gk/SG-01.jpg"}, {"code": "SG-02", "name": "Signage huruf timbul samping (teras kanan)", "img": "gk/SG-02.jpg"}, {"code": "AX-01", "name": "Aksonometri bangunan (atap & plafon dihilangkan)", "img": "gk/AX-01.jpg"}];
+const pickables = [], allMeshes = [];
+const ray = new THREE.Raycaster();
+let down = null, nPtr = 0, selCode = null, hiMesh = null;
+renderer.domElement.addEventListener('pointerdown', e => { nPtr++; down = nPtr === 1 ? {x: e.clientX, y: e.clientY, t: performance.now()} : null; });
+const endPtr = e => {
+  nPtr = Math.max(0, nPtr - 1);
+  if (down && nPtr === 0 && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 8 && performance.now() - down.t < 450) pick(e);
+  if (nPtr === 0) down = null;
+};
+renderer.domElement.addEventListener('pointerup', endPtr);
+renderer.domElement.addEventListener('pointercancel', () => { nPtr = 0; down = null; });
+function visibleChain(o){ for (; o; o = o.parent) if (!o.visible) return false; return true; }
+function pick(e){
+  const r = renderer.domElement.getBoundingClientRect();
+  const v = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(v, orthoOn ? ortho : camera);
+  const hits = ray.intersectObjects(allMeshes.filter(visibleChain), false);
+  // anything nearer that is not pickable (walls without finish id etc.) also counts
+  let id = 0;
+  for (const h of hits){
+    if (h.point.y > cutPlane.constant + 0.001) continue;
+    const at = h.object.geometry.attributes._objid; id = at ? Math.round(at.getX(h.face.a)) : 0; break;
+  }
+  const code = OBJIDS[id];
+  if (code && ITEMS[code]) select(code); else deselect();
+}
+function highlight(code){
+  if (hiMesh){ scene.remove(hiMesh); hiMesh.geometry.dispose(); hiMesh = null; }
+  if (!code) return;
+  const ids = Object.keys(OBJIDS).filter(k => OBJIDS[k] === code).map(Number);
+  const out = [];
+  pickables.forEach(m => {
+    const g = m.geometry, pos = g.attributes.position, oid = g.attributes._objid, idx = g.index;
+    for (let i = 0; i < idx.count; i += 3){
+      const a = idx.getX(i); if (ids.indexOf(Math.round(oid.getX(a))) < 0) continue;
+      for (let k = 0; k < 3; k++){ const j = idx.getX(i + k); out.push(pos.getX(j), pos.getY(j), pos.getZ(j)); }
+    }
+  });
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(out, 3));
+  hiMesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({color: 0xe07a4b, transparent: true, opacity: 0.38, side: THREE.DoubleSide,
+    depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, clippingPlanes: CLIP}));
+  hiMesh.renderOrder = 5; scene.add(hiMesh);
+}
+function select(code){
+  const it = ITEMS[code]; selCode = code;
+  $('cCode').textContent = it.code; $('cName').textContent = it.name; $('cKind').textContent = it.kind + ' · lembar ' + it.sheet;
+  $('cMats').innerHTML = ''; it.mats.forEach(m => { const li = document.createElement('li'); li.textContent = m; $('cMats').appendChild(li); });
+  $('cGo').textContent = 'Lihat gambar kerja · ' + it.sheet;
+  $('card').hidden = false; highlight(code);
+}
+function deselect(){ selCode = null; $('card').hidden = true; highlight(null); }
+$('cClose').addEventListener('click', deselect);
+
+// =================== working drawing viewer ===================
+let saved = null, z = {s: 1, x: 0, y: 0}, imgW = 1, imgH = 1;
+const gkView = $('gkView'), gkImg = $('gkImg');
+function applyZ(){ gkImg.style.transform = 'translate(' + z.x + 'px,' + z.y + 'px) scale(' + z.s + ')'; }
+function fitImg(){ const W = gkView.clientWidth, H = gkView.clientHeight; z.s = Math.min(W / imgW, H / imgH); z.x = (W - imgW * z.s) / 2; z.y = (H - imgH * z.s) / 2; applyZ(); }
+function openGK(arg){
+  const it = (arg && arg.sheet) ? arg : ITEMS[selCode]; if (!it) return;
+  saved = {pos: camera.position.clone(), tgt: controls.target.clone(), opos: ortho.position.clone(), otgt: controls2.target.clone(), ozoom: ortho.zoom, ortho: orthoOn, cut: cutPlane.constant};
+  $('gkTitle').innerHTML = ''; $('gkTitle').textContent = it.sheet + ' – ' + (it.code && it.code !== it.sheet ? it.code + ' ' : '') + it.name;
+  gkImg.onload = () => { imgW = gkImg.naturalWidth; imgH = gkImg.naturalHeight; gkImg.style.width = imgW + 'px'; fitImg(); };
+  gkImg.src = it.img; $('gk').hidden = false;
+}
+function closeGK(){
+  $('gk').hidden = true;
+  if (saved){  // kembali ke view saat gambar kerja dibuka
+    anim = null;
+    camera.position.copy(saved.pos); controls.target.copy(saved.tgt); controls.update();
+    ortho.position.copy(saved.opos); controls2.target.copy(saved.otgt); ortho.zoom = saved.ozoom; ortho.updateProjectionMatrix(); controls2.update();
+    setCut(saved.cut);
+  }
+}
+$('cGo').addEventListener('click', () => openGK());
+$('sheetSel').addEventListener('change', e => { const v = e.target.value; if (v === '') return; const sh = SHEETS[+v]; openGK({sheet: sh.code, code: '', name: sh.name, img: sh.img}); e.target.value = ''; }); $('gkClose').addEventListener('click', closeGK); $('gkFit').addEventListener('click', fitImg);
+const gp = new Map(); let gl0 = null;
+gkView.addEventListener('pointerdown', e => { gkView.setPointerCapture(e.pointerId); gp.set(e.pointerId, {x: e.clientX, y: e.clientY}); gl0 = null; });
+gkView.addEventListener('pointermove', e => {
+  const p = gp.get(e.pointerId); if (!p) return;
+  if (gp.size === 1){ z.x += e.clientX - p.x; z.y += e.clientY - p.y; }
+  p.x = e.clientX; p.y = e.clientY;
+  if (gp.size >= 2){ const [a, b] = [...gp.values()]; const r = gkView.getBoundingClientRect();
+    const cx = (a.x + b.x) / 2 - r.left, cy = (a.y + b.y) / 2 - r.top, d = Math.hypot(a.x - b.x, a.y - b.y);
+    if (gl0){ const k = d / gl0.d; zoomAt(cx, cy, k); z.x += cx - gl0.cx; z.y += cy - gl0.cy; }
+    gl0 = {cx, cy, d}; }
+  applyZ();
+});
+const gup = e => { gp.delete(e.pointerId); gl0 = null; };
+gkView.addEventListener('pointerup', gup); gkView.addEventListener('pointercancel', gup);
+function zoomAt(cx, cy, k){ const ns = Math.max(0.05, Math.min(8, z.s * k)); k = ns / z.s; z.x = cx - (cx - z.x) * k; z.y = cy - (cy - z.y) * k; z.s = ns; }
+gkView.addEventListener('wheel', e => { e.preventDefault(); const r = gkView.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0015)); applyZ(); }, {passive: false});
+gkView.addEventListener('dblclick', fitImg);
+window.addEventListener('resize', () => { if (!$('gk').hidden) fitImg(); });
+
+function resize(){
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h;
+  camera.fov = w < h ? 55 : 40; camera.updateProjectionMatrix();
+  fitOrtho();
+}
+window.addEventListener('resize', resize); resize();
+
+camera.position.set(...VIEWS['3d'].pos); controls.target.set(...VIEWS['3d'].tgt); controls.update();
+
+let hintT = setTimeout(() => $('hint').style.opacity = 0, 6000);
+renderer.domElement.addEventListener('pointerdown', () => { $('hint').style.opacity = 0; clearTimeout(hintT); }, {once:true});
+
+// load model
+const loader = new THREE.GLTFLoader();
+function onModel(gltf){
+  const root = gltf.scene;
+  root.traverse(o => {
+    if (o.isMesh){
+      const m = o.material;
+      if (m.map){ m.map.anisotropy = renderer.capabilities.getMaxAnisotropy(); m.map.encoding = THREE.sRGBEncoding; }
+      const ca = o.geometry.attributes.color;
+      if (ca){ const f = new Float32Array(ca.count * 3); for (let i = 0; i < ca.count; i++){ const v = Math.pow(ca.getX(i), 2.2); f[3*i] = f[3*i+1] = f[3*i+2] = v; }
+        o.geometry.setAttribute('color', new THREE.BufferAttribute(f, 3)); }
+      const b = new THREE.MeshBasicMaterial({vertexColors: !!ca, map: m.map || null, color: m.map ? 0xffffff : m.color.clone().convertSRGBToLinear(), side: THREE.DoubleSide,
+        transparent: m.transparent, opacity: m.opacity, depthWrite: !m.transparent,
+        polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1, clippingPlanes: CLIP});
+      b.name = m.name; o.material = b; m.dispose();
+      if (b.transparent) o.renderOrder = 2;
+    }
+    if (o.isLine || o.isLineSegments){ o.material.transparent = true; o.material.opacity = /furnitur/.test(o.material.name) ? 0.42 : 0.8; o.material.depthWrite = false; o.material.color.set(0x1a1714); o.material.clippingPlanes = CLIP; }
+    if (o.isMesh && !o.material.transparent) allMeshes.push(o);
+    if (o.isMesh && o.geometry.attributes._objid) pickables.push(o);
+  });
+  root.children.forEach(g => { groups[g.name] = g; });
+  scene.add(root);
+  const pts = [[1.567, -2.47], [23.092, -2.47], [23.092, -34.63], [1.567, -34.63], [1.567, -2.47]].map(p => new THREE.Vector3(p[0], 0, p[1]));
+  cutRing = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({color:0xb4552d}));
+  scene.add(cutRing);
+  setCut(2.4);
+  $('load').hidden = true;
+  fromHash();
+}
+function fail(){ $('loadTxt').textContent = 'Model gagal dimuat. Muat ulang halaman untuk mencoba lagi.'; }
+// model is published as base64 text (binary .glb is not a served type)
+(async () => {
+  try {
+    const res = await fetch('model.glb');
+    if (!res.ok) throw new Error(res.status);
+    const total = +res.headers.get('content-length') || 16877520;
+    const reader = res.body.getReader(); const chunks = []; let got = 0;
+    for (;;){
+      const {done, value} = await reader.read(); if (done) break;
+      chunks.push(value); got += value.length;
+      $('prog').firstElementChild.style.width = Math.min(100, 100 * got / total).toFixed(0) + '%';
+      $('loadTxt').textContent = 'Memuat model 3D… ' + Math.min(100, 100 * got / total).toFixed(0) + '%';
+    }
+    const buf = new Uint8Array(await new Blob(chunks).arrayBuffer());
+    $('loadTxt').textContent = 'Menyiapkan tampilan…';
+    loader.parse(buf.buffer, './', onModel, fail);
+  } catch (e) { fail(); }
+})();
+
+function loop(now){
+  requestAnimationFrame(loop);
+  if (anim) anim(now);
+  if (orthoOn) controls2.update(); else controls.update();
+  renderer.render(scene, orthoOn ? ortho : camera);
+}
+requestAnimationFrame(loop);
+})();
+</script>
